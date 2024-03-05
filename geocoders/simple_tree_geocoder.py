@@ -1,21 +1,39 @@
-from api import API, TreeNode
+from custom_queue import CustomQueue
+from api import TreeNode, API
 from geocoders.geocoder import Geocoder
 
 
 # Перебор дерева
 class SimpleTreeGeocoder(Geocoder):
+    __data = None
+
     def __init__(self, samples: int | None = None, data: list[TreeNode] | None = None):
         super().__init__(samples=samples)
         if data is None:
-            self.__data = API.get_areas()
-        else:
-            self.__data = data
+            data = API.get_areas()
+        if SimpleTreeGeocoder.__data is None:
+            nodes = CustomQueue()
+            for node in data:
+                node.parent = None
+                nodes.push(node)
+            while nodes:
+                node = nodes.pop()
+                for area in node.areas:
+                    area.parent = node
+                    nodes.push(area)
+            SimpleTreeGeocoder.__data = data
 
     def _apply_geocoding(self, area_id: str) -> str:
-        """
-            TODO:
-            - Сделать перебор дерева для каждого area_id
-            - В ходе перебора возвращать массив элементов, состоящих из TreeNode необходимой ветки
-            - Из массива TreeNode составить полный адрес
-        """
-        raise NotImplementedError()
+        nodes = CustomQueue()
+        nodes.extend(self.__data)
+        while nodes:
+            node = nodes.pop()
+            if int(node.id) == area_id: break
+            nodes.extend(node.areas)
+        else:
+            raise LookupError(area_id)
+        result = node.name
+        while node.parent is not None:
+            node = node.parent
+            result = node.name + ", " + result
+        return result
